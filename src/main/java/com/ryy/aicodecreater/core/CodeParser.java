@@ -30,6 +30,7 @@ import java.util.regex.Pattern;
  *
  * @author yupi
  */
+@Deprecated
 public class CodeParser {
 
     /**

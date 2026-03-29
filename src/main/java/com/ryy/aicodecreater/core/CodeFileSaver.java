@@ -22,6 +22,7 @@ import java.nio.charset.StandardCharsets;
  * - HTML 模式：只保存一个 index.html
  * - 多文件模式：保存 index.html、style.css、script.js
  */
+@Deprecated
 public class CodeFileSaver {
 
     /**
