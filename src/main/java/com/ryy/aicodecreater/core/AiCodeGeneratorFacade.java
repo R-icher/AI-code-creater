@@ -50,7 +50,7 @@ public class AiCodeGeneratorFacade {
      * @param codeGenTypeEnum 代码生成类型
      * @return 代码保存后的目录文件对象
      */
-    public File generateAndSaveCode(String userMessage, CodeGenTypeEnum codeGenTypeEnum) {
+    public File generateAndSaveCode(String userMessage, CodeGenTypeEnum codeGenTypeEnum, Long appId) {
         // 校验生成类型不能为空，否则无法确定使用哪种生成和保存逻辑
         if (codeGenTypeEnum == null) {
             throw new BusinessException(ErrorCode.SYSTEM_ERROR, "生成类型为空");
@@ -64,14 +64,14 @@ public class AiCodeGeneratorFacade {
 
                 // 使用 文件保存执行器 统一保存 HTML 代码【根据传入不同的代码生成类型，自动跳转到对应的保存方法】
                 // 区别于 return 直接返回一个方法的最终结果，yield 是当前 switch 分支的返回方式
-                yield CodeFileSaverExecutor.executeSaver(result, CodeGenTypeEnum.HTML);
+                yield CodeFileSaverExecutor.executeSaver(result, CodeGenTypeEnum.HTML, appId);
             }
             case MULTI_FILE -> {
                 // 调用 AI 服务生成多文件代码结果
                 MultiFileCodeResult result = aiCodeGeneratorService.generateMultiFileCode(userMessage);
 
                 // 使用 文件保存执行器 统一保存多文件代码【根据传入不同的代码生成类型，自动跳转到对应的保存方法】
-                yield CodeFileSaverExecutor.executeSaver(result, CodeGenTypeEnum.MULTI_FILE);
+                yield CodeFileSaverExecutor.executeSaver(result, CodeGenTypeEnum.MULTI_FILE, appId);
             }
             default -> {
                 // 如果传入的生成类型系统暂不支持，则抛出业务异常
@@ -101,7 +101,7 @@ public class AiCodeGeneratorFacade {
      * @param codeGenTypeEnum 代码生成类型
      * @return 流式代码内容，供前端实时消费
      */
-    public Flux<String> generateAndSaveCodeStream(String userMessage, CodeGenTypeEnum codeGenTypeEnum) {
+    public Flux<String> generateAndSaveCodeStream(String userMessage, CodeGenTypeEnum codeGenTypeEnum, Long appId) {
         // 校验生成类型不能为空
         if (codeGenTypeEnum == null) {
             throw new BusinessException(ErrorCode.SYSTEM_ERROR, "生成类型为空");
@@ -114,14 +114,14 @@ public class AiCodeGeneratorFacade {
                 Flux<String> codeStream = aiCodeGeneratorService.generateHtmlCodeStream(userMessage);
 
                 // 对流式代码进行统一处理：收集、解析、保存
-                yield processCodeStream(codeStream, CodeGenTypeEnum.HTML);
+                yield processCodeStream(codeStream, CodeGenTypeEnum.HTML, appId);
             }
             case MULTI_FILE -> {
                 // 调用 AI 服务流式生成多文件代码
                 Flux<String> codeStream = aiCodeGeneratorService.generateMultiFileCodeStream(userMessage);
 
                 // 对流式代码进行统一处理：收集、解析、保存
-                yield processCodeStream(codeStream, CodeGenTypeEnum.MULTI_FILE);
+                yield processCodeStream(codeStream, CodeGenTypeEnum.MULTI_FILE, appId);
             }
             default -> {
                 // 如果传入的生成类型系统暂不支持，则抛出业务异常
@@ -154,7 +154,7 @@ public class AiCodeGeneratorFacade {
      * @param codeGenType 代码生成类型，用于决定后续解析器和保存器的选择
      * @return 原始流式响应，供前端或调用方继续消费
      */
-    private Flux<String> processCodeStream(Flux<String> codeStream, CodeGenTypeEnum codeGenType) {
+    private Flux<String> processCodeStream(Flux<String> codeStream, CodeGenTypeEnum codeGenType, Long appId) {
         // 用于缓存流式返回的完整代码内容
         StringBuilder codeBuilder = new StringBuilder();
 
@@ -173,7 +173,7 @@ public class AiCodeGeneratorFacade {
 
                 // 使用 文件保存执行器，根据 代码类型 选择对应 保存器，
                 // 将解析后的结果对象保存为本地文件
-                File savedDir = CodeFileSaverExecutor.executeSaver(parsedResult, codeGenType);
+                File savedDir = CodeFileSaverExecutor.executeSaver(parsedResult, codeGenType, appId);
 
                 // 记录保存成功日志，方便后续排查和追踪
                 log.info("保存成功，路径为：" + savedDir.getAbsolutePath());
