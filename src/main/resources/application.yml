@@ -4,9 +4,18 @@ spring:
     # mysql
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
-    url: jdbc:mysql://localhost:3306/AI_code_creater
+    url: jdbc:mysql://localhost/AI_code_creater
     username: root
     password: 123456
+  # redis
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      password:
+      ttl: 3600
+  profiles:
+    active: local
 server:
   port: 8123
   servlet:

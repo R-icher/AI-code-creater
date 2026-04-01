@@ -1,6 +1,7 @@
 package com.ryy.aicodecreater.core;
 
 import com.ryy.aicodecreater.ai.AiCodeGeneratorService;
+import com.ryy.aicodecreater.ai.AiCodeGeneratorServiceFactory;
 import com.ryy.aicodecreater.ai.model.HtmlCodeResult;
 import com.ryy.aicodecreater.ai.model.MultiFileCodeResult;
 import com.ryy.aicodecreater.core.parser.CodeParserExecutor;
@@ -33,6 +34,9 @@ public class AiCodeGeneratorFacade {
     @Resource
     private AiCodeGeneratorService aiCodeGeneratorService;
 
+    @Resource
+    private AiCodeGeneratorServiceFactory aiCodeGeneratorServiceFactory;
+
     /**
      * 统一入口：根据代码生成类型生成并保存代码（非流式）
      *
@@ -56,6 +60,8 @@ public class AiCodeGeneratorFacade {
             throw new BusinessException(ErrorCode.SYSTEM_ERROR, "生成类型为空");
         }
 
+        // 根据 appId 获取对应的 AI 服务实例
+        AiCodeGeneratorService aiCodeGeneratorService = aiCodeGeneratorServiceFactory.getAiCodeGeneratorService(appId);
         // 根据不同生成类型，调用对应的代码生成逻辑和文件保存逻辑
         return switch (codeGenTypeEnum) {
             case HTML -> {
@@ -107,6 +113,8 @@ public class AiCodeGeneratorFacade {
             throw new BusinessException(ErrorCode.SYSTEM_ERROR, "生成类型为空");
         }
 
+        // 根据 appId 获取对应的 AI 服务实例
+        AiCodeGeneratorService aiCodeGeneratorService = aiCodeGeneratorServiceFactory.getAiCodeGeneratorService(appId);
         // 根据不同生成类型，调用对应的流式代码生成逻辑
         return switch (codeGenTypeEnum) {
             case HTML -> {

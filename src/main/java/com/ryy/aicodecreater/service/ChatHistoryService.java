@@ -6,6 +6,7 @@ import com.mybatisflex.core.service.IService;
 import com.ryy.aicodecreater.model.dto.chathistory.ChatHistoryQueryRequest;
 import com.ryy.aicodecreater.model.entity.ChatHistory;
 import com.ryy.aicodecreater.model.entity.User;
+import dev.langchain4j.memory.chat.MessageWindowChatMemory;
 
 import java.time.LocalDateTime;
 
@@ -21,6 +22,8 @@ public interface ChatHistoryService extends IService<ChatHistory> {
     boolean deleteByAppId(Long appId);
 
     QueryWrapper getQueryWrapper(ChatHistoryQueryRequest chatHistoryQueryRequest);
+
+    int loadChatHistoryToMemory(Long appId, MessageWindowChatMemory chatMemory, int maxCount);
 
     Page<ChatHistory> listAppChatHistoryByPage(Long appId, int pageSize,
                                                LocalDateTime lastCreateTime,
