@@ -106,4 +106,8 @@ public class App implements Serializable {
     @Column(value = "isDelete", isLogicDelete = true)
     private Integer isDelete;
 
+    /**
+     * 当前使用的版本号
+     */
+    private Integer currentVersion;
 }

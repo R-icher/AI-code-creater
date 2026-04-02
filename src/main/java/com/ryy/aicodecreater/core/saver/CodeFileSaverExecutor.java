@@ -27,7 +27,7 @@ public class CodeFileSaverExecutor {
      * @param codeGenType 代码生成类型
      * @return 保存的目录
      */
-    public static File executeSaver(Object codeResult, CodeGenTypeEnum codeGenType, Long appId) {
+    public static File executeSaver(Object codeResult, CodeGenTypeEnum codeGenType, Long appId, String outputDirPath) {
         return switch (codeGenType) {
             case HTML -> htmlCodeFileSaver.saveCode((HtmlCodeResult) codeResult, appId);
             case MULTI_FILE -> multiFileCodeFileSaver.saveCode((MultiFileCodeResult) codeResult, appId);

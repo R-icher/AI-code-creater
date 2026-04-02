@@ -18,14 +18,6 @@ import java.util.List;
 public interface AppService extends IService<App> {
 
     /**
-     * 校验应用
-     *
-     * @param app 应用
-     * @param add 是否为创建
-     */
-    void validApp(App app, boolean add);
-
-    /**
      * 获取查询条件
      *
      * @param appQueryRequest 查询请求
@@ -52,4 +44,8 @@ public interface AppService extends IService<App> {
     Flux<String> chatToGenCode(Long appId, String message, User loginUser);
 
     String deployApp(Long appId, User loginUser);
+
+    Boolean rollbackVersion(Long appId, Integer targetVersion, User loginUser);
+
+    String getVersionFileContent(Long appId, Integer version, String relativeFilePath, User loginUser);
 }

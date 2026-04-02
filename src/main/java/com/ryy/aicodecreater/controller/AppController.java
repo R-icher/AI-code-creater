@@ -382,4 +382,28 @@ public class AppController {
         return ResultUtils.success(deployUrl);
     }
 
+
+    /**
+     * 应用版本回退
+     */
+    @PostMapping("/rollback")
+    public BaseResponse<Boolean> rollbackAppVersion(@RequestBody AppRollbackRequest request, HttpServletRequest httpServletRequest) {
+        ThrowUtils.throwIf(request == null || request.getAppId() == null || request.getTargetVersion() == null, ErrorCode.PARAMS_ERROR);
+        User loginUser = userService.getLoginUser(httpServletRequest);
+
+        Boolean result = appService.rollbackVersion(request.getAppId(), request.getTargetVersion(), loginUser);
+        return ResultUtils.success(result);
+    }
+
+    /**
+     * 获取指定版本的文件内容（用于前端 Diff 对比）
+     */
+    @PostMapping("/file/content")
+    public BaseResponse<String> getFileContent(@RequestBody AppFileContentRequest request, HttpServletRequest httpServletRequest) {
+        ThrowUtils.throwIf(request == null || request.getAppId() == null || request.getVersion() == null, ErrorCode.PARAMS_ERROR);
+        User loginUser = userService.getLoginUser(httpServletRequest);
+
+        String content = appService.getVersionFileContent(request.getAppId(), request.getVersion(), request.getRelativeFilePath(), loginUser);
+        return ResultUtils.success(content);
+    }
 }
