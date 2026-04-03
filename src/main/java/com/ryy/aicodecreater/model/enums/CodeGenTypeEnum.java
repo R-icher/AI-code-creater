@@ -24,7 +24,10 @@ public enum CodeGenTypeEnum {
      * 原生多文件模式
      * 一般表示生成多个文件，例如 index.html、style.css、script.js
      */
-    MULTI_FILE("原生多文件模式", "multi_file");
+    MULTI_FILE("原生多文件模式", "multi_file"),
+
+    // Vue 工程模式
+    VUE_PROJECT("Vue 工程模式", "vue_project");
 
     /**
      * 给用户展示的文本说明

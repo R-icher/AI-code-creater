@@ -18,7 +18,7 @@ import java.io.File;
 
 /**
  * AI 代码生成门面类
- *
+ * <p>
  * 在当前设计中，该类主要整合了以下几个模块：
  * 1. AiCodeGeneratorService：负责调用大模型生成代码
  * 2. CodeParserExecutor：负责根据生成类型解析代码内容
@@ -39,18 +39,18 @@ public class AiCodeGeneratorFacade {
 
     /**
      * 统一入口：根据代码生成类型生成并保存代码（非流式）
-     *
+     * <p>
      * 处理流程如下：
      * 1. 校验生成类型是否为空
      * 2. 根据不同代码类型调用对应的大模型生成方法
      * 3. 获取生成结果对象
      * 4. 调用文件保存执行器，将结果保存到本地目录
      * 5. 返回保存目录
-     *
+     * <p>
      * 这里通过 switch 对不同代码类型进行分发，
      * 使调用方无需直接依赖具体生成实现和具体保存实现。
      *
-     * @param userMessage 用户提示词
+     * @param userMessage     用户提示词
      * @param codeGenTypeEnum 代码生成类型
      * @return 代码保存后的目录文件对象
      */
@@ -61,7 +61,7 @@ public class AiCodeGeneratorFacade {
         }
 
         // 根据 appId 获取对应的 AI 服务实例
-        AiCodeGeneratorService aiCodeGeneratorService = aiCodeGeneratorServiceFactory.getAiCodeGeneratorService(appId);
+        AiCodeGeneratorService aiCodeGeneratorService = aiCodeGeneratorServiceFactory.getAiCodeGeneratorService(appId, codeGenTypeEnum);
         // 根据不同生成类型，调用对应的代码生成逻辑和文件保存逻辑
         return switch (codeGenTypeEnum) {
             case HTML -> {
@@ -89,21 +89,21 @@ public class AiCodeGeneratorFacade {
 
     /**
      * 统一入口：根据代码生成类型生成并保存代码（流式）
-     *
+     * <p>
      * 该方法用于处理流式代码生成场景，
      * 例如前端需要边生成边展示代码内容时使用。
-     *
+     * <p>
      * 处理流程如下：
      * 1. 校验生成类型是否为空
      * 2. 根据不同代码类型调用对应的大模型流式生成方法
      * 3. 将生成得到的代码流交给 processCodeStream 统一处理
      * 4. 在流式返回结束后自动完成 代码解析 与 文件保存
-     *
+     * <p>
      * 与非流式方法的区别：
      * - 非流式：一次性拿到结果对象后直接保存
      * - 流式：先逐步返回代码片段，结束后再统一解析和保存
      *
-     * @param userMessage 用户提示词
+     * @param userMessage     用户提示词
      * @param codeGenTypeEnum 代码生成类型
      * @return 流式代码内容，供前端实时消费
      */
@@ -114,7 +114,7 @@ public class AiCodeGeneratorFacade {
         }
 
         // 根据 appId 获取对应的 AI 服务实例
-        AiCodeGeneratorService aiCodeGeneratorService = aiCodeGeneratorServiceFactory.getAiCodeGeneratorService(appId);
+        AiCodeGeneratorService aiCodeGeneratorService = aiCodeGeneratorServiceFactory.getAiCodeGeneratorService(appId, codeGenTypeEnum);
         // 根据不同生成类型，调用对应的流式代码生成逻辑
         return switch (codeGenTypeEnum) {
             case HTML -> {
@@ -131,6 +131,11 @@ public class AiCodeGeneratorFacade {
                 // 对流式代码进行统一处理：收集、解析、保存
                 yield processCodeStream(codeStream, CodeGenTypeEnum.MULTI_FILE, appId, outputDirPath);
             }
+            // 新增生成 VUE 工程项目
+            case VUE_PROJECT -> {
+                Flux<String> codeStream = aiCodeGeneratorService.generateVueProjectCodeStream(appId, userMessage);
+                yield processCodeStream(codeStream, CodeGenTypeEnum.MULTI_FILE, appId, outputDirPath);
+            }
             default -> {
                 // 如果传入的生成类型系统暂不支持，则抛出业务异常
                 String errorMessage = "不支持的生成类型：" + codeGenTypeEnum.getValue();
@@ -142,27 +147,27 @@ public class AiCodeGeneratorFacade {
 
     /**
      * 通用流式代码处理方法
-     *
+     * <p>
      * 该方法用于统一处理流式代码生成后的后置逻辑，
      * 属于门面类内部的公共处理方法。
-     *
+     * <p>
      * 主要职责：
      * 1. 在流式返回过程中实时拼接每一段代码片段
      * 2. 在流式生成完成后，将完整代码内容进行统一解析
      * 3. 根据代码生成类型调用对应的保存器完成文件落盘
      * 4. 记录保存成功或失败日志
-     *
+     * <p>
      * 说明：
      * 流式场景下，大模型会持续返回代码片段，
      * 因此不能像普通生成那样一次性拿到完整结果对象。
      * 所以需要先用 StringBuilder 将所有片段拼接成完整代码，
      * 再在流结束时进行解析和保存。
      *
-     * @param codeStream 代码流，每个元素表示一段代码片段
+     * @param codeStream  代码流，每个元素表示一段代码片段
      * @param codeGenType 代码生成类型，用于决定后续解析器和保存器的选择
      * @return 原始流式响应，供前端或调用方继续消费
      */
-    private Flux<String> processCodeStream(Flux<String> codeStream, CodeGenTypeEnum codeGenType, Long appId,String outputDirPath) {
+    private Flux<String> processCodeStream(Flux<String> codeStream, CodeGenTypeEnum codeGenType, Long appId, String outputDirPath) {
         // 用于缓存流式返回的完整代码内容
         StringBuilder codeBuilder = new StringBuilder();
 
