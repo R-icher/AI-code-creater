@@ -9,6 +9,7 @@ import com.mybatisflex.core.query.QueryWrapper;
 import com.mybatisflex.spring.service.impl.ServiceImpl;
 import com.ryy.aicodecreater.constant.AppConstant;
 import com.ryy.aicodecreater.core.AiCodeGeneratorFacade;
+import com.ryy.aicodecreater.core.handler.StreamHandlerExecutor;
 import com.ryy.aicodecreater.exception.BusinessException;
 import com.ryy.aicodecreater.exception.ErrorCode;
 import com.ryy.aicodecreater.exception.ThrowUtils;
@@ -68,6 +69,9 @@ public class AppServiceImpl2 extends ServiceImpl<AppMapper, App> implements AppS
     @Resource
     private TransactionTemplate transactionTemplate;
 
+    @Resource
+    private StreamHandlerExecutor streamHandlerExecutor;
+
     @Override
     public Flux<String> chatToGenCode(Long appId, String message, User loginUser) {
         // 1. 参数校验
@@ -117,61 +121,63 @@ public class AppServiceImpl2 extends ServiceImpl<AppMapper, App> implements AppS
         // 9. 调用 AI 核心能力：
         //    与老逻辑不同，这里必须把输出目录传下去，
         //    让底层把代码直接保存到“版本目录”，而不是固定目录
-        Flux<String> contentFlux = aiCodeGeneratorFacade.generateAndSaveCodeStream(
+        Flux<String> codeStream = aiCodeGeneratorFacade.generateAndSaveCodeStream(
                 message,
                 codeGenTypeEnum,
                 appId,
                 sourceDirPath
         );
 
-        // 10. 收集 AI 的完整回复内容，流结束后写入聊天记录
-        StringBuilder aiResponseBuilder = new StringBuilder();
+        return streamHandlerExecutor.doExecute(codeStream, chatHistoryService, appId, loginUser, codeGenTypeEnum);
 
-        return contentFlux
-                .map(chunk -> {
-                    // 10.1 实时收集 AI 返回内容
-                    aiResponseBuilder.append(chunk);
-                    // 10.2 同时继续把 chunk 返回前端，实现流式展示
-                    return chunk;
-                })
-                // 11. 只有当前面的 AI 流完整成功结束，才会执行这里
-                .doOnComplete(() -> {
-                    String aiResponse = aiResponseBuilder.toString();
-
-                    // 11.1 保存 AI 回复到聊天记录
-                    if (StrUtil.isNotBlank(aiResponse)) {
-                        chatHistoryService.addChatMessage(
-                                appId,
-                                aiResponse,
-                                ChatHistoryMessageTypeEnum.AI.getValue(),
-                                loginUser.getId()
-                        );
-                    }
-
-                    // 11.2 再次确认版本目录确实生成成功
-                    File generatedDir = new File(sourceDirPath);
-                    ThrowUtils.throwIf(!generatedDir.exists() || !generatedDir.isDirectory(),
-                            ErrorCode.SYSTEM_ERROR, "代码生成失败，版本目录不存在");
-
-                    // 11.3 保存版本记录，并更新 app.currentVersion
-                    saveVersionRecordAfterGenerate(appId, nextVersion, message, sourceDirPath);
-                })
-                .doOnError(error -> {
-                    // 12. 如果 AI 生成失败，记录错误消息
-                    String errorMessage = "AI回复失败: " + error.getMessage();
-                    chatHistoryService.addChatMessage(
-                            appId,
-                            errorMessage,
-                            ChatHistoryMessageTypeEnum.AI.getValue(),
-                            loginUser.getId()
-                    );
-
-                    // 13. 清理本次失败生成的目录，避免留下半成品
-                    File failedDir = new File(sourceDirPath);
-                    if (failedDir.exists()) {
-                        FileUtil.del(failedDir);
-                    }
-                });
+//        // 10. 收集 AI 的完整回复内容，流结束后写入聊天记录
+//        StringBuilder aiResponseBuilder = new StringBuilder();
+//
+//        return contentFlux
+//                .map(chunk -> {
+//                    // 10.1 实时收集 AI 返回内容
+//                    aiResponseBuilder.append(chunk);
+//                    // 10.2 同时继续把 chunk 返回前端，实现流式展示
+//                    return chunk;
+//                })
+//                // 11. 只有当前面的 AI 流完整成功结束，才会执行这里
+//                .doOnComplete(() -> {
+//                    String aiResponse = aiResponseBuilder.toString();
+//
+//                    // 11.1 保存 AI 回复到聊天记录
+//                    if (StrUtil.isNotBlank(aiResponse)) {
+//                        chatHistoryService.addChatMessage(
+//                                appId,
+//                                aiResponse,
+//                                ChatHistoryMessageTypeEnum.AI.getValue(),
+//                                loginUser.getId()
+//                        );
+//                    }
+//
+//                    // 11.2 再次确认版本目录确实生成成功
+//                    File generatedDir = new File(sourceDirPath);
+//                    ThrowUtils.throwIf(!generatedDir.exists() || !generatedDir.isDirectory(),
+//                            ErrorCode.SYSTEM_ERROR, "代码生成失败，版本目录不存在");
+//
+//                    // 11.3 保存版本记录，并更新 app.currentVersion
+//                    saveVersionRecordAfterGenerate(appId, nextVersion, message, sourceDirPath);
+//                })
+//                .doOnError(error -> {
+//                    // 12. 如果 AI 生成失败，记录错误消息
+//                    String errorMessage = "AI回复失败: " + error.getMessage();
+//                    chatHistoryService.addChatMessage(
+//                            appId,
+//                            errorMessage,
+//                            ChatHistoryMessageTypeEnum.AI.getValue(),
+//                            loginUser.getId()
+//                    );
+//
+//                    // 13. 清理本次失败生成的目录，避免留下半成品
+//                    File failedDir = new File(sourceDirPath);
+//                    if (failedDir.exists()) {
+//                        FileUtil.del(failedDir);
+//                    }
+//                });
     }
 
 

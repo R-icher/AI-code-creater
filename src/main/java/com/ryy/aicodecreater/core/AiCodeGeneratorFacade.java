@@ -1,14 +1,21 @@
 package com.ryy.aicodecreater.core;
 
+import cn.hutool.json.JSONUtil;
 import com.ryy.aicodecreater.ai.AiCodeGeneratorService;
 import com.ryy.aicodecreater.ai.AiCodeGeneratorServiceFactory;
 import com.ryy.aicodecreater.ai.model.HtmlCodeResult;
 import com.ryy.aicodecreater.ai.model.MultiFileCodeResult;
+import com.ryy.aicodecreater.ai.model.message.AiResponseMessage;
+import com.ryy.aicodecreater.ai.model.message.ToolExecutedMessage;
+import com.ryy.aicodecreater.ai.model.message.ToolRequestMessage;
 import com.ryy.aicodecreater.core.parser.CodeParserExecutor;
 import com.ryy.aicodecreater.core.saver.CodeFileSaverExecutor;
 import com.ryy.aicodecreater.exception.BusinessException;
 import com.ryy.aicodecreater.exception.ErrorCode;
 import com.ryy.aicodecreater.model.enums.CodeGenTypeEnum;
+import dev.langchain4j.model.chat.response.ChatResponse;
+import dev.langchain4j.service.TokenStream;
+import dev.langchain4j.service.tool.ToolExecution;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -133,8 +140,8 @@ public class AiCodeGeneratorFacade {
             }
             // 新增生成 VUE 工程项目
             case VUE_PROJECT -> {
-                Flux<String> codeStream = aiCodeGeneratorService.generateVueProjectCodeStream(appId, userMessage);
-                yield processCodeStream(codeStream, CodeGenTypeEnum.MULTI_FILE, appId, outputDirPath);
+                TokenStream tokenStream = aiCodeGeneratorService.generateVueProjectCodeStream(appId, userMessage);
+                yield processTokenStream(tokenStream);
             }
             default -> {
                 // 如果传入的生成类型系统暂不支持，则抛出业务异常
@@ -142,6 +149,74 @@ public class AiCodeGeneratorFacade {
                 throw new BusinessException(ErrorCode.SYSTEM_ERROR, errorMessage);
             }
         };
+    }
+
+
+    /**
+     * 将 TokenStream 适配为 Flux<String> 流
+     *
+     * 作用：
+     * 1. 监听 LangChain4j 的 TokenStream 各类事件
+     * 2. 把 AI 普通文本响应、工具调用请求、工具执行结果统一封装成 JSON 字符串
+     * 3. 再通过 Reactor 的 Flux 流向下游传递，便于前端实时消费
+     *
+     * 为什么要这样做：
+     * 因为上层统一是基于 Flux<String> 来处理流式输出，
+     * 而 Vue 工程生成场景返回的是 TokenStream，所以这里需要做一层“适配”。
+     *
+     * @param tokenStream LangChain4j 返回的流式 TokenStream 对象
+     * @return Flux<String> 统一后的流式响应，每个元素都是一个 JSON 字符串
+     */
+    private Flux<String> processTokenStream(TokenStream tokenStream) {
+        return Flux.create(sink -> {
+            // 监听 AI 普通文本的流式响应
+            // 比如模型先返回“正在为你生成代码...”之类的内容
+            tokenStream.onPartialResponse((String partialResponse) -> {
+                        // 将普通 AI 文本封装成统一消息对象
+                        AiResponseMessage aiResponseMessage = new AiResponseMessage(partialResponse);
+
+                        // 转成 JSON 字符串后推送给 Flux 下游
+                        sink.next(JSONUtil.toJsonStr(aiResponseMessage));
+                    })
+
+                    // 监听工具调用请求的流式事件
+                    .onPartialToolExecutionRequest((index, toolExecutionRequest) -> {
+                        // 将工具请求封装成统一消息对象
+                        ToolRequestMessage toolRequestMessage = new ToolRequestMessage(toolExecutionRequest);
+
+                        // 转成 JSON 字符串后推送给 Flux 下游
+                        // 前端可据此实时展示“正在选择工具”或“正在构造工具参数”
+                        sink.next(JSONUtil.toJsonStr(toolRequestMessage));
+                    })
+
+                    // 监听工具执行完成事件
+                    .onToolExecuted((ToolExecution toolExecution) -> {
+                        // 将工具执行结果封装成统一消息对象
+                        ToolExecutedMessage toolExecutedMessage = new ToolExecutedMessage(toolExecution);
+
+                        // 转成 JSON 字符串后推送给 Flux 下游
+                        // 前端可据此展示“某文件已写入完成”等信息
+                        sink.next(JSONUtil.toJsonStr(toolExecutedMessage));
+                    })
+
+                    // 监听整个 AI 响应流结束事件
+                    .onCompleteResponse((ChatResponse response) -> {
+                        // 通知 Flux 下游：流已经结束
+                        sink.complete();
+                    })
+
+                    // 监听异常事件
+                    .onError((Throwable error) -> {
+                        // 打印异常日志，方便排查问题
+                        error.printStackTrace();
+
+                        // 将异常继续传递给 Flux 下游
+                        sink.error(error);
+                    })
+
+                    // 启动流式处理
+                    .start();
+        });
     }
 
 
