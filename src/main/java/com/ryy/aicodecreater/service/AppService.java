@@ -45,6 +45,8 @@ public interface AppService extends IService<App> {
 
     String deployApp(Long appId, User loginUser);
 
+    void generateAppScreenshotAsync(Long appId, String appUrl);
+
     Boolean rollbackVersion(Long appId, Integer targetVersion, User loginUser);
 
     String getVersionFileContent(Long appId, Integer version, String relativeFilePath, User loginUser);
