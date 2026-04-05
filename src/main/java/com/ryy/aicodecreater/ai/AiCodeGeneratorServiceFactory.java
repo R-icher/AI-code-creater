@@ -2,7 +2,7 @@ package com.ryy.aicodecreater.ai;
 
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
-import com.ryy.aicodecreater.ai.tools.FileWriteTool;
+import com.ryy.aicodecreater.ai.tools.*;
 import com.ryy.aicodecreater.exception.BusinessException;
 import com.ryy.aicodecreater.exception.ErrorCode;
 import com.ryy.aicodecreater.model.enums.CodeGenTypeEnum;
@@ -34,6 +34,8 @@ public class AiCodeGeneratorServiceFactory {
     private ChatHistoryService chatHistoryService;
     @Resource
     private StreamingChatModel reasoningStreamingChatModel;
+    @Resource
+    private ToolManager toolManager;
 
     /**
      * AI 服务实例缓存
@@ -91,7 +93,11 @@ public class AiCodeGeneratorServiceFactory {
                     .streamingChatModel(reasoningStreamingChatModel)
                     // 给 AI 服务提供 “对话记忆对象” 的获取方式。
                     .chatMemoryProvider(memoryId -> chatMemory)
-                    .tools(new FileWriteTool())
+                    .tools(new FileWriteTool(),
+                            new FileReadTool(),
+                            new FileModifyTool(),
+                            new FileDirReadTool(),
+                            new FileDeleteTool())
 
                     // 你明明只注册了某些工具
                     // 但大模型在调用工具时，可能“想象”出一个根本不存在的工具
