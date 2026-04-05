@@ -2,6 +2,7 @@ package com.ryy.aicodecreater.service;
 
 import com.mybatisflex.core.query.QueryWrapper;
 import com.mybatisflex.core.service.IService;
+import com.ryy.aicodecreater.model.dto.app.AppAddRequest;
 import com.ryy.aicodecreater.model.dto.app.AppQueryRequest;
 import com.ryy.aicodecreater.model.entity.App;
 import com.ryy.aicodecreater.model.entity.User;
@@ -50,4 +51,6 @@ public interface AppService extends IService<App> {
     Boolean rollbackVersion(Long appId, Integer targetVersion, User loginUser);
 
     String getVersionFileContent(Long appId, Integer version, String relativeFilePath, User loginUser);
+
+    Long createApp(AppAddRequest appAddRequest, User loginUser);
 }
