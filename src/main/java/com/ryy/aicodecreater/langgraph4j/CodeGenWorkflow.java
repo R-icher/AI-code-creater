@@ -1,5 +1,6 @@
 package com.ryy.aicodecreater.langgraph4j;
 
+import cn.hutool.json.JSONUtil;
 import com.ryy.aicodecreater.exception.BusinessException;
 import com.ryy.aicodecreater.exception.ErrorCode;
 import com.ryy.aicodecreater.langgraph4j.model.QualityResult;
@@ -13,6 +14,7 @@ import org.bsc.langgraph4j.GraphStateException;
 import org.bsc.langgraph4j.NodeOutput;
 import org.bsc.langgraph4j.prebuilt.MessagesState;
 import org.bsc.langgraph4j.prebuilt.MessagesStateGraph;
+import reactor.core.publisher.Flux;
 
 import java.util.Map;
 
@@ -83,66 +85,68 @@ public class CodeGenWorkflow {
     }
 
     /**
-     * 执行工作流
-     *
-     * 执行流程：
-     * 1. 创建完整工作流
-     * 2. 初始化上下文 WorkflowContext
-     * 3. 将初始上下文传入工作流
-     * 4. 按节点顺序逐步执行
-     * 5. 每执行完一个节点，就从当前状态中取出最新的上下文
-     * 6. 最终返回最后一个节点执行完成后的上下文结果
-     *
-     * @param originalPrompt 用户输入的原始提示词
-     * @return 工作流执行完成后的最终上下文
+     * 执行工作流（Flux 流式输出版本）
      */
-    public WorkflowContext executeWorkflow(String originalPrompt) {
-        // 先创建工作流图
-        CompiledGraph<MessagesState<String>> workflow = createWorkflow();
+    public Flux<String> executeWorkflowWithFlux(String originalPrompt) {
+        return Flux.create(sink -> {
+            Thread.startVirtualThread(() -> {
+                try {
+                    CompiledGraph<MessagesState<String>> workflow = createWorkflow();
+                    WorkflowContext initialContext = WorkflowContext.builder()
+                            .originalPrompt(originalPrompt)
+                            .currentStep("初始化")
+                            .build();
+                    sink.next(formatSseEvent("workflow_start", Map.of(
+                            "message", "开始执行代码生成工作流",
+                            "originalPrompt", originalPrompt
+                    )));
+                    GraphRepresentation graph = workflow.getGraph(GraphRepresentation.Type.MERMAID);
+                    log.info("工作流图:\n{}", graph.content());
 
-        // 初始化工作流上下文
-        // 这里只放入最基础的数据：用户原始提示词 + 当前步骤
-        WorkflowContext initialContext = WorkflowContext.builder()
-                .originalPrompt(originalPrompt)
-                .currentStep("初始化")
-                .build();
-
-        // 获取工作流图的 Mermaid 表示，方便打印查看整体结构
-        GraphRepresentation graph = workflow.getGraph(GraphRepresentation.Type.MERMAID);
-        log.info("工作流图:\n{}", graph.content());
-        log.info("开始执行代码生成工作流");
-
-        // finalContext 用于保存流程执行过程中的最新上下文
-        // 最终返回的就是最后一步执行完成后的上下文
-        WorkflowContext finalContext = null;
-
-        // 记录当前执行到第几步，方便打印日志观察执行过程
-        int stepCounter = 1;
-
-        // workflow.stream(...) 会按节点顺序依次执行工作流
-        // 这里将初始的 WorkflowContext 放入状态中，作为整个流程的起点
-        for (NodeOutput<MessagesState<String>> step : workflow.stream(
-                Map.of(WorkflowContext.WORKFLOW_CONTEXT_KEY, initialContext))) {
-
-            log.info("--- 第 {} 步完成 ---", stepCounter);
-
-            // 从当前节点执行完成后的状态中，取出最新的 WorkflowContext
-            WorkflowContext currentContext = WorkflowContext.getContext(step.state());
-
-            if (currentContext != null) {
-                // 持续更新 finalContext，确保最后拿到的是最终执行结果
-                finalContext = currentContext;
-                log.info("当前步骤上下文: {}", currentContext);
-            }
-
-            stepCounter++;
-        }
-
-        log.info("代码生成工作流执行完成！");
-
-        // 返回最终执行结果
-        return finalContext;
+                    int stepCounter = 1;
+                    for (NodeOutput<MessagesState<String>> step : workflow.stream(
+                            Map.of(WorkflowContext.WORKFLOW_CONTEXT_KEY, initialContext))) {
+                        log.info("--- 第 {} 步完成 ---", stepCounter);
+                        WorkflowContext currentContext = WorkflowContext.getContext(step.state());
+                        if (currentContext != null) {
+                            sink.next(formatSseEvent("step_completed", Map.of(
+                                    "stepNumber", stepCounter,
+                                    "currentStep", currentContext.getCurrentStep()
+                            )));
+                            log.info("当前步骤上下文: {}", currentContext);
+                        }
+                        stepCounter++;
+                    }
+                    sink.next(formatSseEvent("workflow_completed", Map.of(
+                            "message", "代码生成工作流执行完成！"
+                    )));
+                    log.info("代码生成工作流执行完成！");
+                    sink.complete();
+                } catch (Exception e) {
+                    log.error("工作流执行失败: {}", e.getMessage(), e);
+                    sink.next(formatSseEvent("workflow_error", Map.of(
+                            "error", e.getMessage(),
+                            "message", "工作流执行失败"
+                    )));
+                    sink.error(e);
+                }
+            });
+        });
     }
+
+    /**
+     * 格式化 SSE 事件的辅助方法
+     */
+    private String formatSseEvent(String eventType, Object data) {
+        try {
+            String jsonData = JSONUtil.toJsonStr(data);
+            return "event: " + eventType + "\ndata: " + jsonData + "\n\n";
+        } catch (Exception e) {
+            log.error("格式化 SSE 事件失败: {}", e.getMessage(), e);
+            return "event: error\ndata: {\"error\":\"格式化失败\"}\n\n";
+        }
+    }
+
 
 
     /**
