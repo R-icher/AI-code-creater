@@ -31,7 +31,11 @@ public class ProjectBuilderNode {
             try {
                 VueProjectBuilder vueBuilder = SpringContextUtil.getBean(VueProjectBuilder.class);
                 // 执行 Vue 项目构建（npm install + npm run build）
-                boolean buildSuccess = vueBuilder.buildProject(generatedCodeDir);
+                boolean buildSuccess = vueBuilder.buildProject(generatedCodeDir, buildStatus -> {
+                    log.info("构建状态: stage={}, message={}",
+                            buildStatus.getStage(),
+                            buildStatus.getMessage());
+                });
                 if (buildSuccess) {
                     // 构建成功，返回 dist 目录路径
                     buildResultDir = generatedCodeDir + File.separator + "dist";

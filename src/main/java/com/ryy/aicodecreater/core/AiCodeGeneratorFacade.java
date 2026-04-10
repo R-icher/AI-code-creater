@@ -6,8 +6,11 @@ import com.ryy.aicodecreater.ai.AiCodeGeneratorServiceFactory;
 import com.ryy.aicodecreater.ai.model.HtmlCodeResult;
 import com.ryy.aicodecreater.ai.model.MultiFileCodeResult;
 import com.ryy.aicodecreater.ai.model.message.AiResponseMessage;
+import com.ryy.aicodecreater.ai.model.message.BuildStatusMessage;
 import com.ryy.aicodecreater.ai.model.message.ToolExecutedMessage;
 import com.ryy.aicodecreater.ai.model.message.ToolRequestMessage;
+import com.ryy.aicodecreater.constant.AppConstant;
+import com.ryy.aicodecreater.core.builder.VueProjectBuilder;
 import com.ryy.aicodecreater.core.parser.CodeParserExecutor;
 import com.ryy.aicodecreater.core.saver.CodeFileSaverExecutor;
 import com.ryy.aicodecreater.exception.BusinessException;
@@ -35,14 +38,10 @@ import java.io.File;
 @Service
 public class AiCodeGeneratorFacade {
 
-    /**
-     * AI 代码生成服务
-     */
-    @Resource
-    private AiCodeGeneratorService aiCodeGeneratorService;
-
     @Resource
     private AiCodeGeneratorServiceFactory aiCodeGeneratorServiceFactory;
+    @Resource
+    private VueProjectBuilder vueProjectBuilder;
 
     /**
      * 统一入口：根据代码生成类型生成并保存代码（非流式）
@@ -141,7 +140,7 @@ public class AiCodeGeneratorFacade {
             // 新增生成 VUE 工程项目
             case VUE_PROJECT -> {
                 TokenStream tokenStream = aiCodeGeneratorService.generateVueProjectCodeStream(appId, userMessage);
-                yield processTokenStream(tokenStream);
+                yield processTokenStream(tokenStream, appId);
             }
             default -> {
                 // 如果传入的生成类型系统暂不支持，则抛出业务异常
@@ -167,7 +166,7 @@ public class AiCodeGeneratorFacade {
      * @param tokenStream LangChain4j 返回的流式 TokenStream 对象
      * @return Flux<String> 统一后的流式响应，每个元素都是一个 JSON 字符串
      */
-    private Flux<String> processTokenStream(TokenStream tokenStream) {
+    private Flux<String> processTokenStream(TokenStream tokenStream, Long appId) {
         return Flux.create(sink -> {
             // 监听 AI 普通文本的流式响应
             // 比如模型先返回“正在为你生成代码...”之类的内容
@@ -201,8 +200,27 @@ public class AiCodeGeneratorFacade {
 
                     // 监听整个 AI 响应流结束事件
                     .onCompleteResponse((ChatResponse response) -> {
-                        // 通知 Flux 下游：流已经结束
-                        sink.complete();
+                        // 执行 Vue 项目构建（同步执行，确保预览时项目已就绪）
+                        String projectPath = AppConstant.CODE_OUTPUT_ROOT_DIR + File.separator + "vue_project_" + appId;
+
+                        try {
+
+                            // 每当 VueProjectBuilder 产生一条构建状态消息，我就把它转成 JSON，然后通过 sink.next(...) 推送给前端
+                            boolean success = vueProjectBuilder.buildProject(projectPath, buildMessage -> {
+                                sink.next(JSONUtil.toJsonStr(buildMessage));
+                            });
+
+                            if (!success) {
+                                log.error("Vue 项目构建失败, appId={}", appId);
+                            }
+                            sink.complete();
+                        } catch (Exception e) {
+                            log.error("Vue 项目构建异常", e);
+                            BuildStatusMessage failMessage = new BuildStatusMessage("BUILD_FAIL", "项目构建异常");
+                            failMessage.setErrorMessage(e.getMessage());
+                            sink.next(JSONUtil.toJsonStr(failMessage));
+                            sink.error(e);
+                        }
                     })
 
                     // 监听异常事件
