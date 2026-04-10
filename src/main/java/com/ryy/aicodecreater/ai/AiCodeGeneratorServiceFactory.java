@@ -2,6 +2,8 @@ package com.ryy.aicodecreater.ai;
 
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
+import com.ryy.aicodecreater.ai.guardrail.PromptSafetyInputGuardrail;
+import com.ryy.aicodecreater.ai.guardrail.RetryOutputGuardrail;
 import com.ryy.aicodecreater.ai.tools.*;
 import com.ryy.aicodecreater.exception.BusinessException;
 import com.ryy.aicodecreater.exception.ErrorCode;
@@ -103,6 +105,12 @@ public class AiCodeGeneratorServiceFactory {
                         .hallucinatedToolNameStrategy(toolExecutionRequest -> ToolExecutionResultMessage.from(
                                 toolExecutionRequest, "Error: there is no tool called " + toolExecutionRequest.name()
                         ))
+
+                        // 添加输入护轨
+                        .inputGuardrails(new PromptSafetyInputGuardrail())
+
+//                        .outputGuardrails(new RetryOutputGuardrail())
+
                         .build();
             }
 
@@ -116,6 +124,12 @@ public class AiCodeGeneratorServiceFactory {
                         .chatModel(chatModel)
                         .streamingChatModel(openAiStreamingChatModel)
                         .chatMemory(chatMemory)
+
+                        // 添加输入护轨
+                        .inputGuardrails(new PromptSafetyInputGuardrail())
+
+//                        .outputGuardrails(new RetryOutputGuardrail())
+
                         .build();
             }
             default -> throw new BusinessException(ErrorCode.SYSTEM_ERROR,
