@@ -21,6 +21,16 @@ spring:
       ttl: 3600
   profiles:
     active: local
+  config:
+    import:
+      - optional:nacos:aicodecreater-prompt-safety.yml?group=DEFAULT_GROUP
+  cloud:
+    nacos:
+      config:
+        server-addr: 127.0.0.1:8848
+        group: DEFAULT_GROUP
+        file-extension: yml
+        refresh-enabled: true
 server:
   port: 8123
   servlet:

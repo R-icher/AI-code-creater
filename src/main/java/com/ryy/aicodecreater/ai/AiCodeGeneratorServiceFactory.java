@@ -35,6 +35,8 @@ public class AiCodeGeneratorServiceFactory {
     private ChatHistoryService chatHistoryService;
     @Resource
     private ToolManager toolManager;
+    @Resource
+    private PromptSafetyInputGuardrail promptSafetyInputGuardrail;
 
     /**
      * AI 服务实例缓存
@@ -107,7 +109,7 @@ public class AiCodeGeneratorServiceFactory {
                         ))
 
                         // 添加输入护轨
-                        .inputGuardrails(new PromptSafetyInputGuardrail())
+                        .inputGuardrails(promptSafetyInputGuardrail)
 
 //                        .outputGuardrails(new RetryOutputGuardrail())
 
@@ -125,8 +127,8 @@ public class AiCodeGeneratorServiceFactory {
                         .streamingChatModel(openAiStreamingChatModel)
                         .chatMemory(chatMemory)
 
-                        // 添加输入护轨
-                        .inputGuardrails(new PromptSafetyInputGuardrail())
+                        // 添加输入护轨（从 Spring 容器注入，支持动态配置）
+                        .inputGuardrails(promptSafetyInputGuardrail)
 
 //                        .outputGuardrails(new RetryOutputGuardrail())
 
