@@ -26,6 +26,8 @@ import com.ryy.aicodecreater.model.enums.ChatHistoryMessageTypeEnum;
 import com.ryy.aicodecreater.model.enums.CodeGenTypeEnum;
 import com.ryy.aicodecreater.model.vo.AppVO;
 import com.ryy.aicodecreater.model.vo.UserVO;
+import com.ryy.aicodecreater.monitor.MonitorContext;
+import com.ryy.aicodecreater.monitor.MonitorContextHolder;
 import com.ryy.aicodecreater.service.*;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
@@ -112,22 +114,30 @@ public class AppServiceImpl2 extends ServiceImpl<AppMapper, App> implements AppS
                 loginUser.getId()
         );
 
-        // 6. 计算新版本号
+        // 6. 设置监控上下文
+        MonitorContextHolder.setContext(
+                MonitorContext.builder()
+                        .userId(loginUser.getId().toString())
+                        .appId(appId.toString())
+                        .build()
+        );
+
+        // 7. 计算新版本号
         //    例如当前是 v2，则本次生成的是 v3
         int nextVersion = (app.getCurrentVersion() == null ? 0 : app.getCurrentVersion()) + 1;
 
-        // 7. 构建本次生成对应的“版本目录”
+        // 8. 构建本次生成对应的“版本目录”
         //    示例：/tmp/code_output/multi_file_2038144454829350912_v3
         String sourceDirName = app.getCodeGenType() + "_" + appId + "_v" + nextVersion;
         String sourceDirPath = AppConstant.CODE_OUTPUT_ROOT_DIR + File.separator + sourceDirName;
 
-        // 8. 如果目录已存在，先删除，避免脏数据
+        // 9. 如果目录已存在，先删除，避免脏数据
         File versionDir = new File(sourceDirPath);
         if (versionDir.exists()) {
             FileUtil.del(versionDir);
         }
 
-        // 9. 调用 AI 核心能力：
+        // 10. 调用 AI 核心能力：
         //    与老逻辑不同，这里必须把输出目录传下去，
         //    让底层把代码直接保存到“版本目录”，而不是固定目录
         Flux<String> codeStream = aiCodeGeneratorFacade.generateAndSaveCodeStream(
@@ -137,7 +147,10 @@ public class AppServiceImpl2 extends ServiceImpl<AppMapper, App> implements AppS
                 sourceDirPath
         );
 
-        return streamHandlerExecutor.doExecute(codeStream, chatHistoryService, appId, loginUser, codeGenTypeEnum);
+        return streamHandlerExecutor.doExecute(codeStream, chatHistoryService, appId, loginUser, codeGenTypeEnum).doFinally(signalType -> {
+            // 流结束时清理（无论成功/失败/取消）
+            MonitorContextHolder.clearContext();
+        });
 
 //        // 10. 收集 AI 的完整回复内容，流结束后写入聊天记录
 //        StringBuilder aiResponseBuilder = new StringBuilder();
