@@ -28,13 +28,6 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 public class AuthInterceptor {
 
     /**
-     * 用户服务，用于获取当前登录用户信息
-     */
-    @Resource
-    @Lazy
-    private InnerUserService userService;
-
-    /**
      * 环绕通知：拦截所有带有 @AuthCheck 注解的方法，并进行权限校验
      *
      * @param joinPoint 切入点，表示当前被拦截的方法
